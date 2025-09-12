@@ -503,6 +503,68 @@ class AuthorizationWidget(QWidget):
             QMessageBox.warning(self, "Something went wrong", e)
 
 
+class TreeWidgetHelper:
+    @staticmethod
+    def make_item_widget(tree_widget, item, text, item_id="", main_instance=None, is_parent=False):
+        """Create a widget for tree items with delete button"""
+        container = QWidget()
+        hbox = QHBoxLayout(container)
+        hbox.setContentsMargins(2, 0, 2, 0)
+
+        label = QLabel(text)
+        hbox.addWidget(label)
+
+        # Style based on whether it's a parent or child
+        if is_parent:
+            # Parent item styling - greyed out and no delete button
+            label.setStyleSheet("color: #666666; font-weight: bold;")
+            item.setFlags(item.flags() & ~Qt.ItemIsEnabled)
+            item.setFlags(item.flags() & ~Qt.ItemIsSelectable)
+            
+            # CRITICAL: Disable the container widget from receiving events
+            container.setEnabled(False)
+            container.setAttribute(Qt.WA_TransparentForMouseEvents)
+            label.setAttribute(Qt.WA_TransparentForMouseEvents)
+            
+        else:
+            # Child item styling - normal with delete button
+            delete_btn = QPushButton("✕")
+            delete_btn.setFixedSize(20, 20)
+            delete_btn.setToolTip("Delete")
+            delete_btn.setStyleSheet("""
+                QPushButton {
+                    border: none;
+                    color: red;
+                    font-weight: bold;
+                }
+                QPushButton:hover {
+                    background-color: #f5cccc;
+                    border-radius: 3px;
+                }
+            """)
+            hbox.addWidget(delete_btn)
+
+            # Store text and ID
+            item.setData(0, Qt.UserRole, item_id)
+            
+            # Delete action
+            def remove_item():
+                hidden_id = item.data(0, Qt.UserRole) 
+                
+                if main_instance and main_instance.delete_tab_id(hidden_id):
+                    parent = item.parent()
+                    if parent:
+                        parent.removeChild(item)
+                    else:
+                        idx = tree_widget.indexOfTopLevelItem(item)
+                        tree_widget.takeTopLevelItem(idx)
+                else:
+                    QMessageBox.warning(None, "Warning", "Error while deleting")
+
+            delete_btn.clicked.connect(remove_item)
+
+        tree_widget.setItemWidget(item, 0, container)
+        return container
     
 
 
@@ -669,67 +731,97 @@ class GRPCTab(QWidget):
             tree_panel.setLayout(tree_layout)
             main_instance = main('', '')
 
-            # Utility: create a row with label + delete
-            def make_item_widget(item, text, id = ""):
-                container = QWidget()
-                hbox = QHBoxLayout(container)
-                hbox.setContentsMargins(2, 0, 2, 0)
-
-                label = QLabel(text)
-                hbox.addWidget(label)
-
-                delete_btn = QPushButton("✕")
-                delete_btn.setFixedSize(20, 20)
-                delete_btn.setToolTip("Delete")
-                delete_btn.setStyleSheet("""
-                    QPushButton {
-                        border: none;
-                        color: red;
-                        font-weight: bold;
-                    }
-                    QPushButton:hover {
-                        background-color: #f5cccc;
-                        border-radius: 3px;
-                    }
-                """)
-                hbox.addWidget(delete_btn)
-
-                # Store text
-                item.setData(0, Qt.UserRole, id)
-                
-                # Delete action
-                def remove_item():
-                    hidden_id = item.data(0, Qt.UserRole) 
-                    
-                    parent = item.parent()
-                    if (main_instance.delete_tab_id(hidden_id)):
-                        if parent:
-                            parent.removeChild(item)
-                        else:
-                            idx = self.tree_widget.indexOfTopLevelItem(item)
-                            self.tree_widget.takeTopLevelItem(idx)
-                    else:
-                        QMessageBox.warning(self, "Warning", "Error while deleting")
-                        return False
-
-                delete_btn.clicked.connect(remove_item)
-
-                self.tree_widget.setItemWidget(item, 0, container)
-
             self.tree_widget.itemClicked.connect(self.oncollection_item_clicked)
 
             # Example: Service with methods
             service_item = QTreeWidgetItem(self.tree_widget)
-            make_item_widget(service_item, "MyCollection")
-            
+            # Use the utility class to create the widget
+            TreeWidgetHelper.make_item_widget(
+                self.tree_widget, 
+                service_item, 
+                "MyCollection",
+                "",
+                main_instance, 
+                is_parent=True
+            )
 
             tabs_data = main_instance.get_all_tabs()
             if (tabs_data and isinstance(tabs_data, list) and len(tabs_data) > 0):
                 for tab_name in tabs_data:
                     method_item = QTreeWidgetItem(service_item)
-                    make_item_widget(method_item, tab_name['tab_name'], tab_name['id'])
+                    # Use the utility class for each method item
+                    TreeWidgetHelper.make_item_widget(
+                        self.tree_widget, 
+                        method_item, 
+                        tab_name['tab_name'], 
+                        tab_name['id'],
+                        main_instance
+                    )
 
             service_item.setExpanded(True)
+
+
+            # # Utility: create a row with label + delete
+            # def make_item_widget(item, text, id = ""):
+            #     container = QWidget()
+            #     hbox = QHBoxLayout(container)
+            #     hbox.setContentsMargins(2, 0, 2, 0)
+
+            #     label = QLabel(text)
+            #     hbox.addWidget(label)
+
+            #     delete_btn = QPushButton("✕")
+            #     delete_btn.setFixedSize(20, 20)
+            #     delete_btn.setToolTip("Delete")
+            #     delete_btn.setStyleSheet("""
+            #         QPushButton {
+            #             border: none;
+            #             color: red;
+            #             font-weight: bold;
+            #         }
+            #         QPushButton:hover {
+            #             background-color: #f5cccc;
+            #             border-radius: 3px;
+            #         }
+            #     """)
+            #     hbox.addWidget(delete_btn)
+
+            #     # Store text
+            #     item.setData(0, Qt.UserRole, id)
+                
+            #     # Delete action
+            #     def remove_item():
+            #         hidden_id = item.data(0, Qt.UserRole) 
+                    
+            #         parent = item.parent()
+            #         if (main_instance.delete_tab_id(hidden_id)):
+            #             if parent:
+            #                 parent.removeChild(item)
+            #             else:
+            #                 idx = self.tree_widget.indexOfTopLevelItem(item)
+            #                 self.tree_widget.takeTopLevelItem(idx)
+            #         else:
+            #             QMessageBox.warning(self, "Warning", "Error while deleting")
+            #             return False
+
+            #     delete_btn.clicked.connect(remove_item)
+
+            #     self.tree_widget.setItemWidget(item, 0, container)
+
+            # self.tree_widget.itemClicked.connect(self.oncollection_item_clicked)
+
+            # # Example: Service with methods
+            # service_item = QTreeWidgetItem(self.tree_widget)
+            # make_item_widget(service_item, "MyCollection")
+            
+
+            # tabs_data = main_instance.get_all_tabs()
+            # if (tabs_data and isinstance(tabs_data, list) and len(tabs_data) > 0):
+            #     for tab_name in tabs_data:
+            #         method_item = QTreeWidgetItem(service_item)
+            #         make_item_widget(method_item, tab_name['tab_name'], tab_name['id'])
+
+            # service_item.setExpanded(True)
 
             # --------- Add both tabs to main_tabs ---------
             main_tabs.addTab(left_panel, "Configuration")
@@ -745,11 +837,14 @@ class GRPCTab(QWidget):
         try:
             widget = self.tree_widget.itemWidget(item, column)
             if widget:
+                if not widget.isEnabled():
+                    return
                 
                 label = widget.findChild(QLabel)
                 if label:
                     main_instance = main('', '')
                     tab_id = item.data(0, Qt.UserRole)
+                    
                     if (not isinstance(tab_id, int)):
                         QMessageBox.critical(self, "Error", "Error while getting tab id please try again")
                         return False
@@ -990,7 +1085,7 @@ class GRPCTab(QWidget):
             if dialog.exec_():
                 self.ssl_credentials = dialog.get_credentials()
                 self.tab_data['ssl'] = self.ssl_credentials if self.ssl_credentials is not None else {}
-                print(self.tab_data['ssl'])
+                
                 if (isinstance(self.tab_data['ssl'], list) and len(self.tab_data['ssl']) > 0):
                     for certs in self.tab_data['ssl']:
                         if (isinstance(certs, dict) and (certs['client_certificate'] != '' or certs['client_key'] != '' or certs['ca_certificate'] != '') and not certs['id']):
@@ -1030,6 +1125,17 @@ class GRPCTab(QWidget):
             helpercls.log(function_name='get_my_tab_name_and_data', args=[], exception=e)
             QMessageBox.warning(self, "Something went wrong", e)
 
+    def delete_all_children(self, tree_widget):
+        """Delete all children from the entire tree widget"""
+        # Method 1: Clear all items (including top-level)
+        tree_widget.clear()
+        
+        # Method 2: If you want to keep top-level items but remove their children
+        for i in range(tree_widget.topLevelItemCount()):
+            top_level_item = tree_widget.topLevelItem(i)
+            self.delete_children_of_item(top_level_item)
+
+
 
 
     def save_tab_data(self):
@@ -1066,7 +1172,41 @@ class GRPCTab(QWidget):
             else:
                 QMessageBox.information(None, "Success", "Operation completed successfully!")
 
-            
+            # Refresh the tree widget
+            main_window = self.window()
+            tab_widget = main_window.tabs
+            for i in range(tab_widget.count()):
+                tabwidget = tab_widget.widget(i)
+                widget = tabwidget.tree_widget
+                widget.itemClicked.connect(self.oncollection_item_clicked)
+                self.delete_all_children(widget)
+                # Example: Service with methods
+                service_item = QTreeWidgetItem(widget)
+                # Use the utility class to create the widget
+                TreeWidgetHelper.make_item_widget(
+                    widget, 
+                    service_item, 
+                    "MyCollection",
+                    "",
+                    main_instance, 
+                    is_parent=True
+                )
+
+                tabs_data = main_instance.get_all_tabs()
+                if (tabs_data and isinstance(tabs_data, list) and len(tabs_data) > 0):
+                    for tab_name in tabs_data:
+                        method_item = QTreeWidgetItem(service_item)
+                        # Use the utility class for each method item
+                        TreeWidgetHelper.make_item_widget(
+                            widget, 
+                            method_item, 
+                            tab_name['tab_name'], 
+                            tab_name['id'],
+                            main_instance
+                        )
+
+                service_item.setExpanded(True)
+
         except Exception as e:
             QMessageBox.critical(self, "Error", f"save_tab_data: {str(e)}")
             helpercls.log(function_name='get_my_tab_name_and_data', args=[], exception=e)
