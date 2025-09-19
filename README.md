@@ -2,6 +2,7 @@
 A Postman-style gRPC client built with PyQt5 — send gRPC requests, explore services, test  methods  in an easy-to-use GUI.
 This tool helps developers test, debug, and interact with gRPC services easily, without needing to write boilerplate code.
 
+Cross-platform PyQt5 Postman-style gRPC desktop client to test and debug microservices
 gRPC GUI Client / gRPC Testing Desktop tool
 
 ---
