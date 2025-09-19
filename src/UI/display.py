@@ -23,6 +23,7 @@ from executer.main import main
 from UI.JSONValidatorEditor import JSONValidatorEditor
 from database.queries import queries
 from executer.ExecuteWorker import ExecuteWorker
+from executer.ListservicesWorker import ListservicesWorker
 from executer.helper import helper
 
 
@@ -1246,13 +1247,34 @@ class GRPCTab(QWidget):
 
             self.show_progress()
             self.update_bar(20)
-            main_instance = main(host, secure_data)
-            
-            get_servicesres = main_instance.get_services(proto_path_text, proto_import_path)
-            
+
+            # Setup QThread
+            self.thread = QThread()
+            self.worker = ListservicesWorker(host, secure_data, proto_path_text, proto_import_path)
+            self.worker.moveToThread(self.thread)
+            # Setup QThread
+
+            self.thread.started.connect(self.worker.run)
+            self.worker.finished.connect(self.on_listworker_finished)
+            self.worker.error.connect(self.on_listworker_error)
+
+            # Cleanup signals
+            self.worker.finished.connect(self.thread.quit)
+            self.worker.finished.connect(self.worker.deleteLater)
+            self.thread.finished.connect(self.thread.deleteLater)
+
+            self.thread.start()
+    
             self.hide_progress()
+            
+        except Exception as e:
+            self.hide_progress()
+            QMessageBox.critical(self, "Error", f"Failed to list services: {str(e)}")
+            helpercls.log(function_name='list_services', args=[], exception=e)
+
+    def on_listworker_finished(self, get_servicesres):
+        try:
             if (get_servicesres['error']):
-                
                 message_value = (get_servicesres.get('data', {}).get('error', {}).get('details', {}).get('obj', {}).get('error', {}).get('message'))
                 QMessageBox.critical(self, "Error", f"Error occured while importing from proto {message_value}")
                 return False
@@ -1282,8 +1304,19 @@ class GRPCTab(QWidget):
             self.services_tree.selectionModel().selectionChanged.connect(self.update_textbox_from_selection)
         except Exception as e:
             self.hide_progress()
-            QMessageBox.critical(self, "Error", f"Failed to use reflection: {str(e)}")
-            helpercls.log(function_name='list_services', args=[], exception=e)
+            QMessageBox.critical(self, "Error", f"Something went wrong : {str(e)}")
+            helpercls.log(function_name='on_execute_finished', args=[], exception=e)
+
+    def on_listworker_error(self, error_msg):
+        try:
+            self.hide_progress()
+            QMessageBox.warning(self, "Warning", f"Something went wrong while executing the request \n {error_msg}")
+            return False
+        except Exception as e:
+            self.hide_progress()
+            QMessageBox.critical(self, "Error", f"Something went wrong : {str(e)}")
+            helpercls.log(function_name='on_listworker_error', args=[], exception=e)
+        
 
 
     def auto_populate(self):
@@ -1355,8 +1388,7 @@ class GRPCTab(QWidget):
             if (not mapped_service_name):
                 QMessageBox.critical(self, "Error", "something went wrong please try again")
                 return False
-            
-            #request_data_input = self.request_editor.toPlainText()
+        
             request_data_input = self.request_editor.text()
 
             if (not len(str(request_data_input)) > 0):
@@ -1371,8 +1403,6 @@ class GRPCTab(QWidget):
                 return False
 
             request_data = json.dumps(parsed, separators=(',', ':'))
-            
-            main_instance = main(data['host'], data['secure_data'])
 
             self.show_progress()
             self.update_bar(50)
