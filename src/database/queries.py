@@ -22,8 +22,8 @@ class queries(SQLiteManager, helper):
             cur = self.execute("""
                 INSERT INTO tabs (
                     tab_name, host_name, proto_file_path, proto_additional_path,
-                    method_name, saved_tab, request_message, env_id
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    method_name, saved_tab, request_message, env_id, collection_id
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 tab_data["tab_name"],
                 tab_data.get("host_name"),
@@ -33,6 +33,7 @@ class queries(SQLiteManager, helper):
                 tab_data.get("saved_tab", 0),
                 tab_data.get("request_message", None),
                 tab_data.get("env", GLOBAL_ENV),
+                tab_data.get("collection_id", None),
             ))
             
             return cur
@@ -98,9 +99,22 @@ class queries(SQLiteManager, helper):
         except Exception as e:
             self.log(function_name='insert_auth_data_entries', args=[tab_id, auth_data_list], exception=e)
 
+    def insert_collection_entries(self, collection_name) -> None:
+        try:
+            if collection_name:
+                cur = self.execute("""
+                                INSERT INTO collection (
+                                collection_name
+                                ) VALUES (?)
+                                """, (
+                                    str(collection_name),
+                                    ))
+            return cur
+        except Exception as e:
+            self.log(function_name='insert_collection_entries', args=[collection_name], exception=e)
 
 
-    def insert_tab_transactional(self, tab_data, creds_data=None, meta_data=None, auth_data_list=None) -> int:
+    def insert_tab_transactional(self, tab_data, creds_data=None, meta_data=None, auth_data_list=None, collection_data_list=None) -> int:
         try:
             with self:
                 tab_id = self.insert_tab_entry(tab_data)
@@ -155,6 +169,47 @@ class queries(SQLiteManager, helper):
         except Exception as e:
             self.log(function_name='update_creds_entry', args=[id, creds_data], exception=e)
 
+    def update_tab_name(self, id: int, tab_name: str) -> None:
+        try:
+            if tab_name and id:
+                return self.execute("""
+                    UPDATE tabs SET
+                        tab_name = ?
+                        WHERE id = ?
+                """, (
+                    tab_name,
+                    id
+                ))
+        except Exception as e:
+            self.log(function_name='update_tab_name', args=[id, tab_name], exception=e)
+
+    def update_collection_name(self, id: int, collection_name: str) -> None:
+        try:
+            if collection_name and id:
+                return self.execute("""
+                    UPDATE collection SET
+                        collection_name = ?
+                        WHERE id = ?
+                """, (
+                    collection_name,
+                    id
+                ))
+        except Exception as e:
+            self.log(function_name='update_collection_name', args=[id, collection_name], exception=e)
+
+    def update_tab_collection(self, collection_id: int, tab_id: int):
+        try:
+            return self.execute("""
+                    UPDATE tabs SET
+                        collection_id = ?
+                        WHERE id = ?
+                """, (
+                    collection_id,
+                    tab_id
+                ))
+        except Exception as e:
+            self.log(function_name='update_tab_collection', args=[tab_id, collection_id], exception=e)
+
     def update_meta_entries(self, tab_id: int, meta_data: List[dict]) -> None:
         try:
             self.cursor.execute("DELETE FROM meta WHERE tab_id = ?", (tab_id,))
@@ -188,6 +243,13 @@ class queries(SQLiteManager, helper):
             return self.fetchone("SELECT * FROM tabs WHERE id = ?", (tab_id,))
         except Exception as e:
             self.log(function_name='get_tab_by_id', args=[tab_id], exception=e)
+
+    def get_collection_fromtab_id(self, tab_id: int) -> Optional[sqlite3.Row]:
+        try:
+            return self.fetchone("SELECT collection_id FROM tabs WHERE id = ?", (tab_id,))
+        except Exception as e:
+            self.log(function_name='get_tab_by_id', args=[tab_id], exception=e)
+
 
     def get_all_tabs(self) -> List[sqlite3.Row]:
         try:
@@ -255,6 +317,12 @@ class queries(SQLiteManager, helper):
                 return self.fetchall(sql)
         except Exception as e:
             self.log(function_name='get_creds', args=[], exception=e)
+
+    def get_collection(self):
+        try:
+            return self.fetchall("SELECT * FROM collection;")
+        except Exception as e:
+            self.log(function_name='get_collection', args=[], exception=e)
     
     def get_tab_all_data(self, tab_id):
         try:
@@ -283,6 +351,13 @@ class queries(SQLiteManager, helper):
             return self.fetchall(sql, params)
         except Exception as e:
             self.log(function_name='get_tab_all_data', args=[tab_id], exception=e)
+
+    def get_all_tab_collection(self) -> List[sqlite3.Row]:
+        try:
+            return self.fetchall("SELECT tabs.tab_name, tabs.id, collection.id as collection_id, collection.collection_name FROM tabs " \
+            "inner join collection on tabs.collection_id = collection.id ORDER BY collection.id")
+        except Exception as e:
+            self.log(function_name='get_all_tabs', args=[], exception=e)
         
     
     # ====================
@@ -316,6 +391,22 @@ class queries(SQLiteManager, helper):
             return cur.rowcount
         except Exception as e:
             self.log(function_name='delete_tab_entry', args=[tab_id], exception=e)
+    
+    def delete_collection(self, collection_id : int) -> None:
+        try:
+            if (collection_id):
+                cur = self.execute("DELETE FROM collection WHERE id = ?", (collection_id,))
+                return cur.rowcount
+        except Exception as e:
+            self.log(function_name='delete_tab_entry', args=[collection_id], exception=e)
+
+    def delete_tabs_ofcollection(self, collection_id : int) -> None:
+        try:
+            if (collection_id):
+                cur = self.execute("DELETE FROM tabs WHERE collection_id = ?", (collection_id,))
+                return cur.rowcount
+        except Exception as e:
+            self.log(function_name='delete_tab_entry', args=[collection_id], exception=e)
 
     def delete_tab_transactional(self, tab_id: int) -> None:
         try:
