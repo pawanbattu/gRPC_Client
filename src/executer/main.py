@@ -165,7 +165,7 @@ class main(queries):
         except Exception as e:
             self.log('get_creds_db', [where], exception=e)
     
-    def save_tab_data(self, tab_name, method_name, data, request_data = "", env_id = "", tab_id = 0) :
+    def save_tab_data(self, tab_name, method_name, data, request_data = "", env_id = "", tab_id = 0, collection_id = 0) :
         try:
             
             if (not isinstance(data, dict)):
@@ -185,7 +185,7 @@ class main(queries):
             tab_data_to_insert['tab_data']['method_name'] = method_name
             tab_data_to_insert['tab_data']['request_message'] = request_data
             tab_data_to_insert['tab_data']['env_id'] = env_id
-
+            tab_data_to_insert['tab_data']['collection_id'] = collection_id
 
             if ('meta_data' in data):
                 
