@@ -8,6 +8,7 @@ CREATE TABLE IF NOT EXISTS tabs (
     saved_tab BOOLEAN DEFAULT 0,
     secure BOOLEAN DEFAULT 0,
     request_message TEXT,
+    collection_id INTEGER default 0,
     env_id INTEGER DEFAULT -1
 );
 
@@ -52,8 +53,7 @@ CREATE TABLE IF NOT EXISTS env_variables (
     env_id INTEGER DEFAULT -1
 );
 
--- Uncomment if you want foreign key constraints
--- FOREIGN KEY (tab_id) REFERENCES tabs(id) ON DELETE CASCADE
-
-
---FOREIGN KEY (tab_id) REFERENCES tabs(id) ON DELETE CASCADE
+CREATE TABLE IF NOT EXISTS collection (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    collection_name VARCHAR(100) DEFAULT ''
+);
